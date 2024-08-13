@@ -83,7 +83,5 @@ this project is licensed under the MIT license - see the [license](LICENSE) file
 
 the task scheduler library i wrote for this is pretty neat i think, so i might break it out into its own library. dm me if i haven't already done this and you want to use it.
 
----
-
-[^1]: [xkcd: automation](https://xkcd.com/1319/)
+[^1]: [related](https://xkcd.com/974/)
 [^2]: originally, i planned to make the bot send me a summary email, but i couldn't be bothered to get the gmail send email api working, and also, i wouldn't read those either.
