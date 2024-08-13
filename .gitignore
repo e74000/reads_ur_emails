@@ -1,0 +1,14 @@
+# Ignore credentials and keys
+credentials.json
+credentials_*.json
+token.json
+
+# Ignore config files
+config.json
+last_fetch.json
+
+.idea/
+
+# Ignore Go build files
+*.exe
+*.out
