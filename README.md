@@ -66,7 +66,7 @@ create or edit the `config.json` file in the root directory of the project with 
 to run the application, execute:
 
 ```sh
-go run main.go
+go run .
 ```
 
 the application will start and begin processing emails according to the schedule defined in your `config.json`.
