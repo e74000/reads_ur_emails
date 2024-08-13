@@ -49,7 +49,8 @@ create or edit the `config.json` file in the root directory of the project with 
   "open_ai_key": "your_openai_api_key",
   "discord_token": "your_discord_bot_token",
   "daily_summary_channel_id": "discord_channel_id_for_daily_summary",
-  "weekly_summary_channel_id": "discord_channel_id_for_weekly_summary"
+  "weekly_summary_channel_id": "discord_channel_id_for_weekly_summary",
+  "oauth_debug_channel_id: "discord_channel_id_for_oauth_debugging"
 }
 ```
 
