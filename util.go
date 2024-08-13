@@ -122,10 +122,19 @@ func getTokenFromWeb(oauthConfig *oauth2.Config) *oauth2.Token {
 	// Set up a channel to receive the authorization code from Discord
 	authCodeChan := make(chan string)
 
-	// Listen for the authorization code
+	// Inside your message handler
 	discordSession.AddHandlerOnce(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		if m.ChannelID == config.OAuthDebugChannelID {
-			authCodeChan <- m.Content
+		// Check if the message starts with a mention of the bot
+		if strings.HasPrefix(m.Content, "<@"+s.State.User.ID+">") {
+			// Remove the mention part
+			messageContent := strings.TrimSpace(strings.Replace(m.Content, "<@"+s.State.User.ID+">", "", 1))
+
+			log.Info("Message received", "original content", m.Content, "stripped content", messageContent)
+
+			// Process the stripped message content
+			if m.ChannelID == config.OAuthDebugChannelID && m.Author != nil && !m.Author.Bot {
+				authCodeChan <- messageContent
+			}
 		}
 	})
 
