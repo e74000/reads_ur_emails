@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"github.com/bwmarrin/discordgo"
 	"net/http"
 	"os"
 	"strings"
@@ -27,6 +26,7 @@ type Config struct {
 	DiscordToken           string `json:"discord_token"`
 	DailySummaryChannelID  string `json:"daily_summary_channel_id"`
 	WeeklySummaryChannelID string `json:"weekly_summary_channel_id"`
+	OAuthDebugChannelID    string `json:"oauth_debug_channel_id"`
 }
 
 func parseWeekday(day string) time.Weekday {
@@ -108,20 +108,42 @@ func getClient(config *oauth2.Config) *http.Client {
 	return config.Client(context.Background(), tok)
 }
 
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	log.Info("Authorize this app", "url", authURL)
+func getTokenFromWeb(oauthConfig *oauth2.Config) *oauth2.Token {
+	authURL := oauthConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatal("Unable to read authorization code", "error", err)
+	// Send the auth URL to the debug channel on Discord
+	err := sendToDiscord(config.OAuthDebugChannelID, fmt.Sprintf("OAuth token has expired. Please authorize this app by visiting the following URL and provide the authorization code here: %s", authURL))
+	if err != nil {
+		log.Fatal("Unable to send OAuth request to Discord", "error", err)
 	}
 
-	tok, err := config.Exchange(context.Background(), authCode)
+	log.Info("Waiting for user to provide authorization code in Discord...")
+
+	// Set up a channel to receive the authorization code from Discord
+	authCodeChan := make(chan string)
+
+	// Listen for the authorization code
+	discordSession.AddHandlerOnce(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		if m.ChannelID == config.OAuthDebugChannelID {
+			authCodeChan <- m.Content
+		}
+	})
+
+	// Wait for the authorization code
+	authCode := <-authCodeChan
+
+	// Exchange the authorization code for a token
+	tok, err := oauthConfig.Exchange(context.Background(), authCode)
 	if err != nil {
 		log.Fatal("Unable to retrieve token from web", "error", err)
 	}
-	log.Info("Token successfully retrieved from web")
+
+	// Notify the user of success
+	err = sendToDiscord(config.OAuthDebugChannelID, "OAuth token successfully retrieved and saved.")
+	if err != nil {
+		log.Fatal("Unable to send OAuth success message to Discord", "error", err)
+	}
+
 	return tok
 }
 
@@ -205,32 +227,8 @@ func fetchEmails(client *http.Client, after time.Time) ([]*gmail.Message, error)
 	return messages, nil
 }
 
-func sendEmail(client *http.Client, recipient, subject, body string) error {
-	log.Info("Sending email", "to", recipient, "subject", subject)
-	srv, err := gmail.NewService(context.Background(), option.WithHTTPClient(client))
-	if err != nil {
-		return fmt.Errorf("unable to create Gmail service: %v", err)
-	}
-
-	emailContent := fmt.Sprintf(
-		"To: %s\r\nSubject: %s\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
-		recipient, subject, body,
-	)
-
-	emailMessage := &gmail.Message{
-		Raw: encodeWeb64String([]byte(emailContent)),
-	}
-
-	if _, err := srv.Users.Messages.Send("me", emailMessage).Do(); err != nil {
-		return fmt.Errorf("unable to send email: %v", err)
-	}
-
-	log.Info("Email sent successfully", "to", recipient)
-	return nil
-}
-
 func loadFile(path string) (string, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("could not read file: %v", err)
 	}
@@ -257,11 +255,6 @@ func callOpenAI(messages []openai.ChatCompletionMessage) (string, error) {
 		return "", fmt.Errorf("ChatCompletion error: %v", err)
 	}
 	return resp.Choices[0].Message.Content, nil
-}
-
-func encodeWeb64String(b []byte) string {
-	s := base64.URLEncoding.EncodeToString(b)
-	return strings.TrimRight(s, "=")
 }
 
 func closeFile(f *os.File, description string) {

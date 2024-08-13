@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -116,8 +116,11 @@ func setupScheduler(config *Config) *scheduler.Scheduler {
 		log.Fatal("Invalid daily summary time format", "error", err)
 	}
 
-	s.Add(createTask("Daily summary", sendDailySummary).
-		Daily(time.Date(0, 0, 0, dailyTime.Hour(), dailyTime.Minute(), 0, 0, time.Local)))
+	s.Add(
+		createTask("Daily summary", sendDailySummary).
+			Daily(time.Date(0, 0, 0, dailyTime.Hour(), dailyTime.Minute(), 0, 0, time.Local)).
+			GlobalBlocking(),
+	)
 
 	weeklyTime, err := time.Parse("15:04", config.WeeklySummaryTime)
 	if err != nil {
@@ -125,12 +128,20 @@ func setupScheduler(config *Config) *scheduler.Scheduler {
 	}
 
 	weekday := parseWeekday(config.WeeklySummaryDay)
-	s.Add(createTask("Weekly summary", sendWeeklySummary).
-		Weekly(map[time.Weekday]bool{weekday: true},
-			time.Date(0, 0, 0, weeklyTime.Hour(), weeklyTime.Minute(), 0, 0, time.Local)))
+	s.Add(
+		createTask("Weekly summary", sendWeeklySummary).
+			Weekly(
+				map[time.Weekday]bool{weekday: true},
+				time.Date(0, 0, 0, weeklyTime.Hour(), weeklyTime.Minute(), 0, 0, time.Local),
+			).
+			GlobalBlocking(),
+	)
 
-	s.Add(createTask("OAuth token refresh", refreshOAuthTokens).
-		Every(24 * time.Hour).GlobalBlocking())
+	s.Add(
+		createTask("OAuth token refresh", refreshOAuthTokens).
+			Every(time.Hour).
+			GlobalBlocking(),
+	)
 
 	log.Info("Scheduler setup complete")
 	return s
@@ -200,7 +211,7 @@ func sendWeeklySummary() error {
 func refreshOAuthTokens() error {
 	log.Info("Refreshing OAuth tokens...")
 
-	b, err := ioutil.ReadFile(credentialsFile)
+	b, err := os.ReadFile(credentialsFile)
 	if err != nil {
 		log.Fatal("Unable to read client secret file", "error", err)
 	}
